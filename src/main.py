@@ -20,16 +20,16 @@ def run_console_ui() -> None:
         config = load_config()
         console = Console()
 
-        console.print(Panel(Align.center("[bold]Wyszukiwanie daty pierwszej rejestracji[/]"), border_style="cyan", title="Historia Pojazdu"))
+        console.print(Panel(Align.center("[bold]First Registration Date Recovery[/]"), border_style="cyan", title="PL Vehicle History"))
 
-        reg_num = Prompt.ask("Podaj numer rejestracyjny (np. PKS66111)").strip().upper()
-        vin_num = Prompt.ask("Podaj numer VIN (np. VF1RJB00265666700)").strip().upper()
-        years_input = Prompt.ask("Podaj rok lub lata po przecinku (np. 2020, 2021)")
+        reg_num = Prompt.ask("Enter Polish registration number (e.g. PKS66111)").strip().upper()
+        vin_num = Prompt.ask("Enter VIN number (e.g. VF1RJB00265666700)").strip().upper()
+        years_input = Prompt.ask("Enter year or years separated by comma (e.g. 2025, 2026)")
 
         years_to_check = [int(y.strip()) for y in years_input.split(",") if y.strip().isdigit()]
 
         if not years_to_check:
-            console.print("[bold red]Błąd: Nie podano żadnego poprawnego roku![/]")
+            console.print("[bold red]Error: No valid year provided![/]")
             return
         
         found_date = None
@@ -46,7 +46,7 @@ def run_console_ui() -> None:
                             TextColumn("{task.completed}/{task.total}"), TimeElapsedColumn(), TimeRemainingColumn()]
 
             with Progress(*progress_cols, expand=True) as progress:
-                task_id = progress.add_task(f"Przeszukiwanie {year}...", total=total_days)
+                task_id = progress.add_task(f"Scanning {year}...", total=total_days)
                 
                 for current_date in date_generator:
                     success = False
@@ -54,16 +54,16 @@ def run_console_ui() -> None:
                     
                     while not success and attempts < config['max_retries']:
                         try:
-                            progress.update(task_id, description=f"Sprawdzanie {current_date}")
+                            progress.update(task_id, description=f"Checking {current_date}")
                             response = fetcher.get_vehicle_data(reg_num, vin_num, current_date, timeout=config['timeout'])
 
                             if response.status_code == 200:
                                 found_date = current_date
                                 success = True
-                                progress.console.print(f"[bold green]SUKCES![/] Znaleziono datę: {current_date}")
+                                progress.console.print(f"[bold green]SUCCESS![/] Date found: {current_date}")
                             elif response.status_code == 429:
                                 wait = config['retry_delay'] * (attempts + 1)
-                                progress.console.print(f"[yellow]Limit 429! Czekam {wait}s...[/]")
+                                progress.console.print(f"[yellow]Limit 429! Waiting {wait}s...[/]")
                                 time.sleep(wait)
                                 fetcher = VehicleDataFetcher()
                                 attempts += 1
@@ -71,13 +71,13 @@ def run_console_ui() -> None:
                                 success = True
                                 time.sleep(config['request_delay'])
                             else:
-                                progress.console.print(f"[red]Błąd {response.status_code} dla {current_date}. Ponawiam...[/]")
+                                progress.console.print(f"[red]Error {response.status_code} for {current_date}. Retrying...[/]")
                                 time.sleep(config['request_delay'])
                                 attempts += 1
 
                         except Exception as e:
                             attempts += 1
-                            progress.console.print(f"[bold red]Błąd połączenia ({attempts}/{config['max_retries']}): {e}[/]")
+                            progress.console.print(f"[bold red]Connection error ({attempts}/{config['max_retries']}): {e}[/]")
                             time.sleep(config['retry_delay'])
                             fetcher = VehicleDataFetcher()
 
@@ -86,13 +86,12 @@ def run_console_ui() -> None:
                         break
 
         if found_date:
-            console.print(Panel(f"[bold green]Data pierwszej rejestracji to: {found_date}[/]", title="WYNIK", border_style="green"))
+            console.print(Panel(f"[bold green]First registration date is: {found_date}[/]", title="RESULT", border_style="green"))
         else:
-            console.print(Panel("[bold red]Nie znaleziono daty w żadnym z podanych lat.[/]", title="WYNIK", border_style="red"))
+            console.print(Panel("[bold red]No date found for any of the provided years.[/]", title="RESULT", border_style="red"))
 
     except KeyboardInterrupt:
         print("")
-        console.print(Panel("[bold red]Działanie przerwane (Ctrl+C).[/]", border_style="red"))
-
+        console.print(Panel("[bold red]Operation interrupted (Ctrl+C).[/]", border_style="red"))
 if __name__ == "__main__":
     run_console_ui()
